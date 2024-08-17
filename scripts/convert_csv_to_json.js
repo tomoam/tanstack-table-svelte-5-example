@@ -4,7 +4,6 @@ const csvFilePath = 'resources/utf_ken_all.csv';
 const jsonFilePath = 'src/routes/zip_codes.json';
 
 const convertCsvToJson = (csvFilePath, jsonFilePath) => {
-
 	fs.readFile(csvFilePath, 'utf8', (err, data) => {
 		if (err) {
 			console.error('an error occurred while reading the file:', err);
