@@ -27,7 +27,7 @@
 	import type { ZipCodeData } from '$lib/zip_code';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { prefectures } from '../../lib/zip_code/prefectures';
+	import { prefectures } from '$lib/zip_code/prefectures';
 
 	let { data } = $props();
 
