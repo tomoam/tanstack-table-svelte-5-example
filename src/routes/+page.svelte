@@ -4,8 +4,7 @@
 		PaginationState,
 		SortingState,
 		TableOptions,
-		VisibilityState,
-		ColumnMeta
+		VisibilityState
 	} from '@tanstack/svelte-table';
 	import {
 		createColumnHelper,
@@ -101,7 +100,7 @@
 	let pageIndex = $derived(table.getState().pagination.pageIndex + 1);
 </script>
 
-<div class="grid w-full place-items-center">
+<div class="grid place-items-center">
 	<div class="inline-grid w-full max-w-screen-lg gap-2 p-2">
 		{#await loadZipCodeData()}
 			<p>Loading...</p>
