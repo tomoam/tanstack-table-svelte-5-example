@@ -24,11 +24,16 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Button } from '$lib/components/ui/button';
 
-	import type { ZipCodeData } from './+page';
+	import type { ZipCodeData } from '$lib/zip_code';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+	import { prefectures } from './prefectures';
 
 	let { data } = $props();
 
-	// 変更される場合は Rune を使用する
+	// 変更される場合は Rune を使用する。
+	// 例えば特定の行の特定のフィールドだけ変更される場合は $state を使用し、
+	// loadの再実行などで配列が再代入で丸ごと入れ替わるだけなら $state.raw を使用すると良い。
 	let zipCodeData: ZipCodeData[] = $state.raw([]);
 
 	// await ブロックで使用する
@@ -36,33 +41,46 @@
 		zipCodeData = await data.zipCodeData;
 	}
 
+	// 各カラムの定義
 	const columnHelper = createColumnHelper<ZipCodeData>();
 	const columns = [
 		columnHelper.accessor('zip_code', {
-			header: '郵便番号',
-			size: 100
+			header: '郵便番号'
 		}),
 		columnHelper.accessor('prefecture', {
-			header: '都道府県',
-			size: 100
+			header: '都道府県'
+		}),
+		columnHelper.accessor('prefecture_kana', {
+			header: '都道府県(カナ)'
 		}),
 		columnHelper.accessor('city', {
 			header: '市区町村'
 		}),
+		columnHelper.accessor('city_kana', {
+			header: '市区町村(カナ)'
+		}),
 		columnHelper.accessor('town', {
 			header: '町域'
+		}),
+		columnHelper.accessor('town_kana', {
+			header: '町域(カナ)'
 		})
 	];
 
+	// ページネーションの初期値
 	const [pagination, setPagination] = createTableState<PaginationState>({
 		pageSize: 10,
 		pageIndex: 0
 	});
-
+	// ソートの初期値
 	const [sorting, setSorting] = createTableState<SortingState>([]);
-
-	const [columnVisibility, setColumnVisibility] = createTableState<VisibilityState>({});
-
+	// カラム表示の初期値
+	const [columnVisibility, setColumnVisibility] = createTableState<VisibilityState>({
+		prefecture_kana: false,
+		city_kana: false,
+		town_kana: false
+	});
+	// カラムフィルタの初期値
 	const [columnFiltersState, setColumnFiltersState] = createTableState<ColumnFiltersState>([]);
 
 	const options: TableOptions<ZipCodeData> = {
@@ -95,13 +113,36 @@
 		debugTable: true
 	};
 
+	// テーブル作成
 	const table = createTable(options);
 
 	let pageIndex = $derived(table.getState().pagination.pageIndex + 1);
+
+	let selected = $state($page.url.searchParams.get('prefecture') || '');
+
+	type SelectChangeEvent = Event & {
+		currentTarget: EventTarget & HTMLSelectElement;
+	};
+	const navigate = (e: SelectChangeEvent) => {
+		goto(e.currentTarget.value ? `/?prefecture=${e.currentTarget.value}` : '/');
+	};
 </script>
 
 <div class="grid place-items-center">
 	<div class="inline-grid w-full max-w-screen-lg gap-2 p-2">
+		<div class="grid gap-2">
+			<label class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70" for="prefectures">都道府県</label>
+			<select
+				class="flex h-10 w-[180px] items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1"
+				name="prefectures"
+				onchange={navigate}
+				bind:value={selected}
+			>
+				{#each prefectures as pref}
+					<option value={pref.key}>{pref.kanji}</option>
+				{/each}
+			</select>
+		</div>
 		{#await loadZipCodeData()}
 			<p>Loading...</p>
 		{:then}
@@ -247,15 +288,15 @@
 					/>
 				</div>
 			</div>
+
+			<pre>{JSON.stringify(
+				{
+					sort: table.getState().sorting,
+					pagination: table.getState().pagination
+				},
+				null,
+				2
+			)}</pre>
 		{/await}
 	</div>
-
-	<pre>{JSON.stringify(
-			{
-				sort: table.getState().sorting,
-				pagination: table.getState().pagination
-			},
-			null,
-			2
-		)}</pre>
 </div>

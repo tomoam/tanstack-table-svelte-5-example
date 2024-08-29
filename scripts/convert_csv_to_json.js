@@ -1,13 +1,14 @@
 import fs from 'fs';
+import path from 'path';
+import { prefectures } from '../src/routes/prefectures.js';
 
-const csvFilePath = 'resources/utf_ken_all.csv';
-const jsonFilePath = 'src/routes/zip_codes.json';
+const csv_file_path = 'resources/utf_ken_all.csv';
+const json_file_path = 'src/lib/zip_code/data/';
 
-const convertCsvToJson = (csvFilePath, jsonFilePath) => {
-	fs.readFile(csvFilePath, 'utf8', (err, data) => {
+const convert_csv_to_json = (csv_file_path, json_file_path) => {
+	fs.readFile(csv_file_path, 'utf8', (err, data) => {
 		if (err) {
 			console.error('an error occurred while reading the file:', err);
-
 			return;
 		}
 
@@ -32,29 +33,43 @@ const convertCsvToJson = (csvFilePath, jsonFilePath) => {
 			'reason_for_change' // 変更理由（「0」は変更なし、「1」市政・区政・町政・分区・政令指定都市施行、「2」住居表示の実施、「3」区画整理、「4」郵便区調整等、「5」訂正、「6」廃止（廃止データのみ使用））
 		];
 
-		const jsonResult = lines.map((line) => {
+		const result = {};
+
+		prefectures.forEach((pref) => {
+			result[pref.kanji || 'all'] = [];
+		});
+
+		lines.forEach((line) => {
 			const values = line.split(',');
-			const result = {};
+			const row = {};
 			headers.forEach((header, index) => {
 				// 地方公共団体コードと旧郵便番号は不要なので除外
 				if (index > 1 && index < 9) {
-					result[header] = values[index].replace(/^"|"$/g, '').trim();
+					row[header] = values[index].replace(/^"|"$/g, '').trim();
 				} else {
 					// 「一町域が二以上の郵便番号で表される場合の表示」以降はいらないかも。一旦コメントアウト。
 					// result[header] = parseInt(values[index]);
 				}
 			});
-			return result;
+
+			result['all'].push(row);
+			result[row.prefecture].push(row);
 		});
 
-		fs.writeFile(jsonFilePath, JSON.stringify(jsonResult), 'utf8', (err) => {
-			if (err) {
-				console.error('an error occurred while writing the file:', err);
-				return;
-			}
-			console.log('the JSON file was created successfully');
+		Object.keys(result).forEach((pref) => {
+			const file_name = `${pref === 'all' ? 'all' : prefectures.find((p) => p.kanji === pref).key}.json`;
+			const file_path = path.join(json_file_path, file_name);
+
+			fs.writeFile(file_path, JSON.stringify(result[pref]), 'utf8', (err) => {
+				if (err) {
+					console.error(`an error occurred while writing the file for ${pref}:`, err);
+					return;
+				}
+			});
 		});
+
+		console.log('the JSON files were created successfully');
 	});
 };
 
-convertCsvToJson(csvFilePath, jsonFilePath);
+convert_csv_to_json(csv_file_path, json_file_path);

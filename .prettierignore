@@ -3,7 +3,7 @@ package-lock.json
 pnpm-lock.yaml
 yarn.lock
 
-zip_codes.json
+src/lib/zip_code/**/*.json
 src/lib/components/**/*.svelte
 src/lib/components/**/*.ts
 src/lib/components/**/*.js
