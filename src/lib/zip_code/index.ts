@@ -94,7 +94,8 @@ const zip_code_data: { [key: string]: ZipCodeData[] } = {
 	oita,
 	miyazaki,
 	kagoshima,
-	okinawa
+	okinawa,
+	all
 } as const;
 
 export type ZipCodeData = {
@@ -114,6 +115,6 @@ export type ZipCodeData = {
 	town: string;
 };
 
-export const get_zip_code = (key: string | null) => {
-	return key ? zip_code_data[key] || all : all;
+export const get_zip_code = async (key: string) => {
+	return zip_code_data[key];
 };

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { prefectures } from '../src/routes/prefectures.js';
+import { prefectures } from '../src/lib/zip_code/prefectures.js';
 
 const csv_file_path = 'resources/utf_ken_all.csv';
 const json_file_path = 'src/lib/zip_code/data/';

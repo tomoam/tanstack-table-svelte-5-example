@@ -1,5 +1,5 @@
 export const prefectures = [
-	{ key: '', kanji: '' },
+	{ key: 'all', kanji: '' },
 	{ key: 'hokkaido', kanji: '北海道' },
 	{ key: 'aomori', kanji: '青森県' },
 	{ key: 'iwate', kanji: '岩手県' },
