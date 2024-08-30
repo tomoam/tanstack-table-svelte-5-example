@@ -4,7 +4,9 @@
 		PaginationState,
 		SortingState,
 		TableOptions,
-		VisibilityState
+		VisibilityState,
+		Updater,
+		OnChangeFn
 	} from '@tanstack/svelte-table';
 	import {
 		createColumnHelper,
@@ -12,11 +14,9 @@
 		getFilteredRowModel,
 		getPaginationRowModel,
 		getSortedRowModel,
-		createTable,
-		FlexRender
+		createSvelteTable,
+		flexRender
 	} from '@tanstack/svelte-table';
-
-	import { createTableState } from './state.svelte';
 
 	import * as Table from '$lib/components/ui/table';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
@@ -25,21 +25,24 @@
 	import { Button } from '$lib/components/ui/button';
 
 	import type { ZipCodeData } from '$lib/zip_code';
-	import { goto } from '$app/navigation';
+	import { afterNavigate, goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { prefectures } from '$lib/zip_code/prefectures';
+	import { writable } from 'svelte/store';
 
-	let { data } = $props();
+	export let data;
 
-	// 変更される場合は Rune を使用する。
-	// 例えば特定の行の特定のフィールドだけ変更される場合は $state を使用し、
-	// loadの再実行などで配列が再代入で丸ごと入れ替わるだけなら $state.raw を使用すると良い。
-	let zipCodeData: ZipCodeData[] = $state.raw([]);
+	let zipCodeData: ZipCodeData[] = [];
 
-	// await ブロックで使用する
+	// await ブロック、afterNavigateで使用する
 	async function loadZipCodeData() {
 		zipCodeData = await data.zipCodeData;
+		rerender();
 	}
+
+	afterNavigate(() => {
+		loadZipCodeData();
+	});
 
 	// 各カラムの定義
 	const columnHelper = createColumnHelper<ZipCodeData>();
@@ -68,25 +71,51 @@
 	];
 
 	// ページネーションの初期値
-	const [pagination, setPagination] = createTableState<PaginationState>({
+	let pagination: PaginationState = {
 		pageSize: 10,
 		pageIndex: 0
-	});
+	};
+
+	const setPagination: OnChangeFn<PaginationState> = (updater: Updater<PaginationState>) => {
+		if (updater instanceof Function) pagination = updater(pagination);
+		else pagination = updater;
+
+		options.update((old) => ({...old, state: {...old.state, pagination}}));
+	}
+
 	// ソートの初期値
-	const [sorting, setSorting] = createTableState<SortingState>([]);
+	let sorting: SortingState = [];
+	const setSorting: OnChangeFn<SortingState> = (updater: Updater<SortingState>) => {
+		if (updater instanceof Function) sorting = updater(sorting);
+		else sorting = updater;
+
+		options.update((old) => ({...old, state: {...old.state, sorting}}));
+	}
+
 	// カラム表示の初期値
-	const [columnVisibility, setColumnVisibility] = createTableState<VisibilityState>({
+	let columnVisibility: VisibilityState = {
 		prefecture_kana: false,
 		city_kana: false,
 		town_kana: false
-	});
-	// カラムフィルタの初期値
-	const [columnFiltersState, setColumnFiltersState] = createTableState<ColumnFiltersState>([]);
+	};
+	const setColumnVisibility: OnChangeFn<VisibilityState> = (updater: Updater<VisibilityState>) => {
+		if (updater instanceof Function) columnVisibility = updater(columnVisibility);
+		else columnVisibility = updater;
 
-	const options: TableOptions<ZipCodeData> = {
-		get data() {
-			return zipCodeData;
-		},
+		options.update((old) => ({...old, state: {...old.state, columnVisibility}}));
+	}
+
+	// カラムフィルタの初期値
+	let columnFilters: ColumnFiltersState = [];
+	const setColumnFiltersState: OnChangeFn<ColumnFiltersState> = (updater: Updater<ColumnFiltersState>) => {
+		if (updater instanceof Function) columnFilters = updater(columnFilters);
+		else columnFilters = updater;
+
+		options.update((old) => ({...old, state: {...old.state, columnFilters}}));
+	}
+
+	const options = writable<TableOptions<ZipCodeData>>({
+		data: zipCodeData,
 		columns: columns,
 		getCoreRowModel: getCoreRowModel(),
 		getPaginationRowModel: getPaginationRowModel(),
@@ -97,28 +126,24 @@
 		onColumnVisibilityChange: setColumnVisibility,
 		onColumnFiltersChange: setColumnFiltersState,
 		state: {
-			get pagination() {
-				return pagination();
-			},
-			get sorting() {
-				return sorting();
-			},
-			get columnVisibility() {
-				return columnVisibility();
-			},
-			get columnFilters() {
-				return columnFiltersState();
-			}
+			pagination,
+			sorting,
+			columnVisibility,
+			columnFilters
 		},
 		debugTable: true
+	});
+
+	const rerender = () => {
+		options.update((options) => ({...options, data: zipCodeData}));
 	};
 
 	// テーブル作成
-	const table = createTable(options);
+	const table = createSvelteTable(options);
 
-	let pageIndex = $derived(table.getState().pagination.pageIndex + 1);
+	$: pageIndex = $table.getState().pagination.pageIndex + 1;
 
-	let selected = $state($page.params.pref);
+	$: selected = $page.params.pref;
 
 	type SelectChangeEvent = Event & {
 		currentTarget: EventTarget & HTMLSelectElement;
@@ -138,7 +163,7 @@
 			<select
 				class="flex h-10 w-[180px] items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1"
 				name="prefectures"
-				onchange={navigate}
+				on:change={navigate}
 				bind:value={selected}
 			>
 				{#each prefectures as pref}
@@ -150,7 +175,7 @@
 			<p>Loading...</p>
 		{:then}
 			<div class="flex items-center justify-between">
-				<p class="text-md font-bold">{table.getRowCount()} rows</p>
+				<p class="text-md font-bold">{$table.getRowCount()} rows</p>
 				<DropdownMenu.Root>
 					<DropdownMenu.Trigger asChild let:builder>
 						<Button variant="outline" size="sm" class="ml-auto flex h-8" builders={[builder]}>
@@ -160,16 +185,16 @@
 					<DropdownMenu.Content>
 						<DropdownMenu.Label>Toggle columns</DropdownMenu.Label>
 						<DropdownMenu.CheckboxItem
-							checked={table.getIsAllColumnsVisible()}
-							onclick={table.getToggleAllColumnsVisibilityHandler()}
+							checked={$table.getIsAllColumnsVisible()}
+							on:click={$table.getToggleAllColumnsVisibilityHandler()}
 						>
 							All
 						</DropdownMenu.CheckboxItem>
 						<DropdownMenu.Separator />
-						{#each table.getAllFlatColumns() as column}
+						{#each $table.getAllFlatColumns() as column}
 							<DropdownMenu.CheckboxItem
 								checked={column.getIsVisible()}
-								onclick={column.getToggleVisibilityHandler()}
+								on:click={column.getToggleVisibilityHandler()}
 							>
 								{column.columnDef.header}
 							</DropdownMenu.CheckboxItem>
@@ -181,7 +206,7 @@
 			<div class="rounded-md border">
 				<Table.Root>
 					<Table.Header>
-						{#each table.getHeaderGroups() as headerGroup}
+						{#each $table.getHeaderGroups() as headerGroup}
 							<Table.Row>
 								{#each headerGroup.headers as header}
 									<Table.Head class="p-1">
@@ -189,11 +214,10 @@
 											<Button
 												variant="ghost"
 												class="p-1"
-												onclick={header.column.getToggleSortingHandler()}
+												on:click={header.column.getToggleSortingHandler()}
 											>
-												<FlexRender
-													content={header.column.columnDef.header}
-													context={header.getContext()}
+												<svelte:component
+													this={flexRender(header.column.columnDef.header, header.getContext())}
 												/>
 											</Button>
 											{#if header.column.getCanFilter()}
@@ -202,7 +226,7 @@
 														type="text"
 														class="h-7 p-1"
 														placeholder="Search..."
-														onchange={(e) => {
+														on:change={(e) => {
 															header.column.setFilterValue(e.currentTarget.value);
 														}}
 													/>
@@ -215,11 +239,13 @@
 						{/each}
 					</Table.Header>
 					<Table.Body>
-						{#each table.getRowModel().rows as row}
+						{#each $table.getRowModel().rows as row}
 							<Table.Row>
 								{#each row.getVisibleCells() as cell}
 									<Table.Cell>
-										<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />
+										<svelte:component
+											this={flexRender(cell.column.columnDef.cell, cell.getContext())}
+										/>
 									</Table.Cell>
 								{/each}
 							</Table.Row>
@@ -231,8 +257,8 @@
 			<div class="inline-grid gap-1">
 				<Pagination.Root
 					page={pageIndex}
-					count={table.getRowCount()}
-					perPage={table.getState().pagination.pageSize}
+					count={$table.getRowCount()}
+					perPage={$table.getState().pagination.pageSize}
 					let:pages
 					let:currentPage
 				>
@@ -240,8 +266,8 @@
 						<Pagination.Item>
 							<Pagination.PrevButton
 								class="px-2 [&>span]:sr-only"
-								disabled={!table.getCanPreviousPage()}
-								on:click={() => table.previousPage()}
+								disabled={!$table.getCanPreviousPage()}
+								on:click={() => $table.previousPage()}
 							/>
 						</Pagination.Item>
 						{#each pages as page (page.key)}
@@ -255,8 +281,8 @@
 										size="default"
 										class="min-w-3 max-w-14 px-3 sm:px-4"
 										{page}
-										isActive={currentPage == page.value}
-										onclick={() => table.setPageIndex(page.value - 1)}
+										isActive={currentPage === page.value}
+										on:click={() => $table.setPageIndex(page.value - 1)}
 									>
 										{page.value}
 									</Pagination.Link>
@@ -266,8 +292,8 @@
 						<Pagination.Item>
 							<Pagination.NextButton
 								class="px-2 [&>span]:sr-only"
-								disabled={!table.getCanNextPage()}
-								on:click={() => table.nextPage()}
+								disabled={!$table.getCanNextPage()}
+								on:click={() => $table.nextPage()}
 							/>
 						</Pagination.Item>
 						<Pagination.Item></Pagination.Item>
@@ -279,13 +305,13 @@
 					<Input
 						type="number"
 						min="1"
-						max={table.getPageCount()}
+						max={$table.getPageCount()}
 						class="h-8 w-20 p-2"
-						onchange={(e) => {
+						on:change={(e) => {
 							const index = e.currentTarget.value ? Number(e.currentTarget.value) - 1 : 0;
-							table.setPageIndex(index);
+							$table.setPageIndex(index);
 						}}
-						onblur={(e) => {
+						on:blur={(e) => {
 							e.currentTarget.value = '';
 						}}
 					/>
@@ -294,8 +320,8 @@
 
 			<pre>{JSON.stringify(
 					{
-						sort: table.getState().sorting,
-						pagination: table.getState().pagination
+						sort: $table.getState().sorting,
+						pagination: $table.getState().pagination
 					},
 					null,
 					2
