@@ -116,7 +116,7 @@
 	// テーブル作成
 	const table = createTable(options);
 
-	let pageIndex = $derived(table.getState().pagination.pageIndex + 1);
+	let currentPage = $state(1);
 
 	let selected = $state($page.params.pref);
 
@@ -230,7 +230,7 @@
 
 			<div class="inline-grid gap-1">
 				<Pagination.Root
-					page={pageIndex}
+					bind:page={currentPage}
 					count={table.getRowCount()}
 					perPage={table.getState().pagination.pageSize}
 					let:pages
@@ -255,7 +255,7 @@
 										size="default"
 										class="min-w-3 max-w-14 px-3 sm:px-4"
 										{page}
-										isActive={currentPage == page.value}
+										isActive={currentPage === page.value}
 										onclick={() => table.setPageIndex(page.value - 1)}
 									>
 										{page.value}
@@ -282,8 +282,10 @@
 						max={table.getPageCount()}
 						class="h-8 w-20 p-2"
 						onchange={(e) => {
-							const index = e.currentTarget.value ? Number(e.currentTarget.value) - 1 : 0;
+							const num = e.currentTarget.value ? Number(e.currentTarget.value) - 1 : 0;
+							const index = num < 0 ? 0 : num >= table.getPageCount() ? table.getPageCount() - 1 : num;
 							table.setPageIndex(index);
+							currentPage = index + 1;
 						}}
 						onblur={(e) => {
 							e.currentTarget.value = '';
